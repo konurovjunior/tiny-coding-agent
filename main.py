@@ -1,5 +1,8 @@
 """Fill in the stage interfaces in your own workspace."""
 
+import os
+import stat
+import tempfile
 from pathlib import Path
 
 
@@ -23,7 +26,36 @@ def safe_path(workspace, relative):
 
 
 def apply_patch(workspace, relative, old, new):
-    raise NotImplementedError("apply_patch")
+    """Replace the single exact occurrence of `old` with `new` in a workspace file, or raise ValueError.
+
+    A patch is a claim about the file as it is now: `old` must appear exactly once. Zero means the model's view
+    is stale, two or more means the edit is ambiguous; either way the file is left untouched.
+    The new content goes to a temporary file in the same folder, gets the original's permission bits, and then
+    replaces the original in one atomic step, so a crash mid-write can never leave half a file behind.
+    """
+    target = safe_path(workspace, relative)
+    if not old:  # "" occurs everywhere ("abc".count("") == 4): an empty anchor is never a real patch
+        raise ValueError("old text is empty")
+    text = target.read_text(encoding="utf-8")
+    found = text.count(old)
+    if found != 1:
+        raise ValueError(f"old text found {found} times in {relative}, expected exactly once")
+    patched = text.replace(old, new, 1)
+
+    mode = stat.S_IMODE(target.stat().st_mode)  # e.g. 0o751: keep executable scripts executable
+    # Same folder = same filesystem, which is what makes os.replace atomic (a rename, never a copy).
+    tmp_path = None
+    try:
+        # delete=False: we decide the file's fate ourselves (replace it in, or remove it in finally)
+        with tempfile.NamedTemporaryFile("w", dir=target.parent, prefix=f".{target.name}.", suffix=".tmp",
+                                         delete=False, encoding="utf-8") as f:  # with = try-with-resources
+            tmp_path = f.name  # captured before writing: if write or close fails, finally still knows the file
+            f.write(patched)
+        os.chmod(tmp_path, mode)
+        os.replace(tmp_path, target)  # atomic: readers see the old file or the new one, never a mix
+    finally:
+        if tmp_path is not None:
+            Path(tmp_path).unlink(missing_ok=True)  # already gone after a successful replace; otherwise clean up
 
 
 def run_tests(workspace, timeout=5):
