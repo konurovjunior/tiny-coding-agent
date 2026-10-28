@@ -1,0 +1,12 @@
+model planner on workspace: 5/5 repaired (tests pass, tests/ untouched)
+model gpt-6-luna, max_steps 12, cost $0.00202 total, $0.00040 per run
+steps when repaired: [4, 5, 5, 5, 5]   invalid actions: 0   edited tests: 0
+
+run 1: completed, 5 steps: test → read → read → patch → test
+run 2: completed, 5 steps: test → read → read → patch → test
+run 3: completed, 4 steps: test → read → patch → test
+run 4: completed, 5 steps: test → read → read → patch → test
+run 5: completed, 5 steps: test → read → read → patch → test
+
+distinct fixes:
+  {"basket.py": "def total(price, quantity):\n    return price * quantity\n"}

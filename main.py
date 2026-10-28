@@ -75,16 +75,21 @@ def run_tests(workspace, timeout=5):
         return {"passed": False, "tests": 0, "skipped": 0, "state": "no_tests", "returncode": None,
                 "output": "no tests/ folder in the workspace"}
     command = [sys.executable, "-m", "unittest", "discover", "-s", "tests"]  # fixed argv, never a shell string
-    proc = subprocess.Popen(command, cwd=root, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE, text=True,
-                            start_new_session=True)  # own process group, so a timeout can stop its children too
-    try:
-        stdout, stderr = proc.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        os.killpg(proc.pid, signal.SIGKILL)  # the whole group: a test may have started processes of its own
-        stdout, stderr = proc.communicate()  # reap it and collect what it printed
-        return {"passed": False, "tests": 0, "skipped": 0, "state": "timeout", "returncode": None,
-                "output": _tail(stdout + stderr) + f"\n[stopped after {timeout} s]"}
+    # A fresh, empty bytecode cache for every run. Python trusts a cached .pyc while the source keeps the same size
+    # and modification second; a patch like "a - b" -> "a + b" changes neither, so without this the second run
+    # would test the OLD code. Found on 2026-10-28 by the model-planner tests.
+    with tempfile.TemporaryDirectory(prefix="pycache-") as cache:
+        env = {**os.environ, "PYTHONPYCACHEPREFIX": cache, "PYTHONDONTWRITEBYTECODE": "1"}
+        proc = subprocess.Popen(command, cwd=root, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, text=True,
+                                start_new_session=True)  # own process group: a timeout can stop its children too
+        try:
+            stdout, stderr = proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            os.killpg(proc.pid, signal.SIGKILL)  # the whole group: a test may have started processes of its own
+            stdout, stderr = proc.communicate()  # reap it and collect what it printed
+            return {"passed": False, "tests": 0, "skipped": 0, "state": "timeout", "returncode": None,
+                    "output": _tail(stdout + stderr) + f"\n[stopped after {timeout} s]"}
 
     # unittest writes its summary to stderr. Only the LAST "Ran N tests" counts: test code can print a fake one
     # (to stdout or even stderr) before the real run ends.
@@ -109,22 +114,29 @@ def _execute(workspace, action):
     tool = action.get("tool") if isinstance(action, dict) else None
     if tool == "test":
         return run_tests(workspace)
+    if tool == "read":  # pure: a real planner has to look at the code before it can patch it
+        if not isinstance(action.get("path"), str):
+            raise ValueError("read needs a string field path")
+        return {"text": _tail(safe_path(workspace, action["path"]).read_text(encoding="utf-8"))}
     if tool == "patch":
         fields = [action.get(k) for k in ("path", "old", "new")]
         if not all(isinstance(f, str) for f in fields):
             raise ValueError("patch needs string fields path, old and new")
         apply_patch(workspace, *fields)
         return {"applied": True}
-    raise ValueError(f"unknown tool: {tool!r}")  # e.g. "shell": only test and patch exist
+    raise ValueError(f"unknown tool: {tool!r}")  # e.g. "shell": only test, patch and read exist
 
 
-def drive(workspace, planner, max_steps=6):
+def drive(workspace, planner, max_steps=6, on_invalid="stop"):
     """The agent loop: ask the planner for one action, run it, record action + observation, repeat.
 
     planner(trace) sees everything so far and returns the next action, or None to stop (abstain).
     Stops with:  completed         a test run passed (the only success: evidence, not a claim)
                  failed            the planner has nothing more to do, or an action was invalid
                  budget_exhausted  max_steps actions were used and the planner still wanted more
+    on_invalid="stop" (the stage 4 rule) ends the run on an invalid action. "observe" records the error as the
+    action's result instead, so a model planner can read why and correct itself (lesson 14/06); the step still
+    counts against the budget, so a model that keeps failing still stops.
     """
     if not isinstance(max_steps, int) or max_steps < 1:
         raise ValueError("max_steps must be a positive integer")
@@ -139,7 +151,9 @@ def drive(workspace, planner, max_steps=6):
             result = _execute(workspace, action)
         except ValueError as e:
             trace.append({**action, "result": {"error": str(e)}})
-            return _finish("failed", trace, f"invalid action: {e}")
+            if on_invalid == "stop":
+                return _finish("failed", trace, f"invalid action: {e}")
+            continue
         trace.append({**action, "result": result})
         if action["tool"] == "test" and result["passed"]:
             return _finish("completed", trace, f"{result['tests']} tests passed")
