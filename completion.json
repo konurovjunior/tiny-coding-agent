@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-28T13:50:14.833001+00:00",
+  "projects": [
+    {
+      "id": "tiny-coding-agent",
+      "title": "Tiny Coding Agent",
+      "mode": "learner",
+      "optionalIncluded": false,
+      "manifestHash": "15be15305d1dabe7edf3cafa45bdfb3de8a0aa27a168d01e33346c53a592b928",
+      "selectedStages": [
+        "01-confine-paths",
+        "02-apply-exact-patches",
+        "03-run-real-tests",
+        "04-bound-the-loop"
+      ],
+      "stages": [
+        {
+          "id": "01-confine-paths",
+          "number": 1,
+          "language": "python",
+          "status": "pass",
+          "tests": 5,
+          "skippedTests": 0,
+          "durationMs": 56,
+          "reason": "",
+          "runners": [
+            {
+              "language": "python",
+              "status": "pass",
+              "tests": 5,
+              "skippedTests": 0,
+              "reason": "",
+              "durationMs": 56
+            }
+          ]
+        },
+        {
+          "id": "02-apply-exact-patches",
+          "number": 2,
+          "language": "python",
+          "status": "pass",
+          "tests": 8,
+          "skippedTests": 0,
+          "durationMs": 84,
+          "reason": "",
+          "runners": [
+            {
+              "language": "python",
+              "status": "pass",
+              "tests": 8,
+              "skippedTests": 0,
+              "reason": "",
+              "durationMs": 84
+            }
+          ]
+        },
+        {
+          "id": "03-run-real-tests",
+          "number": 3,
+          "language": "python",
+          "status": "pass",
+          "tests": 10,
+          "skippedTests": 0,
+          "durationMs": 434,
+          "reason": "",
+          "runners": [
+            {
+              "language": "python",
+              "status": "pass",
+              "tests": 10,
+              "skippedTests": 0,
+              "reason": "",
+              "durationMs": 433
+            }
+          ]
+        },
+        {
+          "id": "04-bound-the-loop",
+          "number": 4,
+          "language": "python",
+          "status": "pass",
+          "tests": 8,
+          "skippedTests": 0,
+          "durationMs": 256,
+          "reason": "",
+          "runners": [
+            {
+              "language": "python",
+              "status": "pass",
+              "tests": 8,
+              "skippedTests": 0,
+              "reason": "",
+              "durationMs": 255
+            }
+          ]
+        }
+      ],
+      "allStagesPassed": true,
+      "certificateEligible": true
+    }
+  ],
+  "certificateEligible": true
+}

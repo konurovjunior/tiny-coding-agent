@@ -87,8 +87,11 @@ class McpServerTests(unittest.TestCase):
         self.assertEqual(self.error_code(call("read_file", {"path": "basket.py", "mode": "w"})), -32602)  # unknown
         self.assertEqual(self.error_code(call("read_file", {"path": 7})), -32602)                       # wrong type
 
-    def test_not_yet_implemented_tool_is_a_tool_error(self):
-        self.assertTrue(self.result(call("run_tests", {}))["isError"])  # stage 3 will implement run_tests
+    def test_run_tests_reports_its_evidence_as_json(self):
+        r = self.result(call("run_tests", {}))  # this workspace has no tests/ folder
+        self.assertFalse(r["isError"])  # the tool worked; the code just isn't proven
+        report = json.loads(r["content"][0]["text"])
+        self.assertEqual((report["passed"], report["state"]), (False, "no_tests"))
 
     # --- the stateless envelope --------------------------------------------------------------------------------
     def test_missing_meta_or_capabilities_is_32602(self):
