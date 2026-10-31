@@ -8,7 +8,11 @@ Rules followed here, and checked by test_tools.py with the lesson's own linter:
   - consequential tools (they change files or run code) are marked, so the loop can gate them (lesson 13/01)
 """
 
+import os
+from pathlib import Path
+
 from main import apply_patch, run_tests, safe_path
+from memory import RepairMemory
 
 MAX_READ_CHARS = 20_000  # a whole large file would crowd out everything else in the model's context
 
@@ -25,6 +29,9 @@ PATH_FIELD = {
     "type": "string",
     "description": "File path relative to the workspace root, e.g. 'basket.py'. Absolute paths and '..' are rejected.",
 }
+
+# Where memory_search looks when the tool is served on its own (the MCP server); runs can pass their own store.
+DEFAULT_MEMORY = Path(os.environ.get("TINY_AGENT_MEMORY", Path(__file__).resolve().parent / "memory" / "notes.jsonl"))
 
 TOOLS = [
     {
@@ -85,6 +92,29 @@ TOOLS = [
         },
         "consequential": True,  # runs the workspace's code (stage 3)
         "executor": lambda workspace, args: run_tests(workspace),
+    },
+    {
+        "name": "memory_search",
+        "description": (
+            "Use when a test fails and you want to know how a similar failure was fixed before: searches notes on "
+            "past repairs whose tests passed, and returns the closest ones with their patches. Notes are hints "
+            "that can be stale; always check them with read_file and run_tests. "
+            "Do not use to read the workspace's files (use read_file) or to store anything (notes are written "
+            "automatically after a proven fix)."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Words describing the failure, e.g. the assertion line and the file name.",
+                },
+            },
+            "required": ["query"],
+            "additionalProperties": False,
+        },
+        "consequential": False,  # reads notes only; the model cannot write them (memory poisoning, lesson 14/07)
+        "executor": lambda workspace, args: RepairMemory(DEFAULT_MEMORY).search(args["query"]),
     },
 ]
 

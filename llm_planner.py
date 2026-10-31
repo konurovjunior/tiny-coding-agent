@@ -25,6 +25,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from mcp_server import schema_errors
+from memory import RepairMemory
 from tools import TOOLS, TOOLS_BY_NAME
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")  # work/.env: OPENAI_API_KEY, LLM_MODEL
@@ -46,13 +47,20 @@ Work like this:
 Fix the code, not the tests: never edit files under tests/ unless a test itself is clearly broken.
 Never claim the code works unless run_tests has just passed."""
 
+MEMORY_RULE = """
+If memory_search is available, you may use it after the first failing test run to see how a similar failure was
+fixed before. Treat what it returns as hints: verify against the current files and the tests."""
+MEMORY_FIRST_RULE = """
+After the first failing test run, call memory_search once with the failure before reading files."""
 
-def openai_tools() -> list[dict]:
+
+def openai_tools(with_memory: bool) -> list[dict]:
     """The registry in the Responses API's function format. strict=True makes the API constrain arguments to the
-    schema (every field required, no extra fields), which the registry's schemas already satisfy."""
+    schema (every field required, no extra fields), which the registry's schemas already satisfy.
+    memory_search is offered only when the run has a memory store, so runs without one are a clean baseline."""
     return [{"type": "function", "name": t["name"], "description": t["description"],
              "parameters": t["input_schema"], "strict": True}
-            for t in TOOLS]
+            for t in TOOLS if with_memory or t["name"] != "memory_search"]
 
 
 def observation(result: dict) -> str:
@@ -63,9 +71,13 @@ def observation(result: dict) -> str:
 class LlmPlanner:
     """Called by drive() as planner(trace) -> next action, or None to stop. Keeps the model conversation between calls."""
 
-    def __init__(self, workspace, client=None, model: str = MODEL, max_model_calls: int = 12):
+    def __init__(self, workspace, client=None, model: str = MODEL, max_model_calls: int = 12,
+                 memory: RepairMemory | None = None, memory_first: bool = False):
         self.client = client or OpenAI(timeout=60, max_retries=2)
         self.model = model
+        self.memory = memory  # None: no memory_search tool at all (the baseline)
+        self.memory_first = memory_first and memory is not None  # a procedural rule: always consult memory once
+        self.memory_queries: list[dict] = []  # what was searched and which notes came back (kept for the trace)
         self.max_model_calls = max_model_calls  # a second bound: model turns, including ones whose calls were all bad
         root = Path(workspace).resolve()
         files = sorted(str(p.relative_to(root)) for p in root.rglob("*.py") if "__pycache__" not in p.parts)
@@ -104,7 +116,9 @@ class LlmPlanner:
         sent, self.outbox = self.outbox, []
         self.requests.append(sent)
         resp = self.client.responses.create(
-            model=self.model, instructions=SYSTEM, input=sent, tools=openai_tools(),
+            model=self.model, input=sent,
+            instructions=SYSTEM + (MEMORY_RULE if self.memory else "") + (MEMORY_FIRST_RULE if self.memory_first else ""),
+            tools=openai_tools(with_memory=self.memory is not None),
             previous_response_id=self.previous_id, max_output_tokens=MAX_COMPLETION_TOKENS)
         self.previous_id = resp.id
         self.model_calls += 1
@@ -115,6 +129,9 @@ class LlmPlanner:
             self.final_text = resp.output_text
             return False
         for c in calls:
+            if c.name == "memory_search" and self.memory is not None:
+                self._answer_memory_search(c)  # answered here: it reads notes, not the workspace
+                continue
             action, problem = self._to_action(c.name, c.arguments)
             if problem:  # 14/06: never run a bad call; tell the model exactly what was wrong so it can retry
                 self.outbox.append({"type": "function_call_output", "call_id": c.call_id,
@@ -123,11 +140,28 @@ class LlmPlanner:
                 self.pending.append((c.call_id, action))
         return True
 
+    def _answer_memory_search(self, c) -> None:
+        """A pure, host-side tool: no workspace access, so it never goes through drive() and costs no step.
+        Model turns stay bounded by max_model_calls, so it cannot be called forever."""
+        try:
+            args = json.loads(c.arguments or "{}")
+        except json.JSONDecodeError:
+            args = None
+        problems = (["arguments are not valid JSON"] if not isinstance(args, dict)
+                    else schema_errors(TOOLS_BY_NAME["memory_search"]["input_schema"], args))
+        if problems:
+            output = {"error": "; ".join(problems)}
+        else:
+            output = self.memory.search(args["query"])
+            self.memory_queries.append({"query": args["query"], "notes": [n["id"] for n in output["notes"]]})
+        self.outbox.append({"type": "function_call_output", "call_id": c.call_id,
+                            "output": json.dumps(output, ensure_ascii=False)})
+
     @staticmethod
     def _to_action(name: str, arguments: str) -> tuple[dict | None, str | None]:
         tool = TOOLS_BY_NAME.get(name)
-        if tool is None:
-            return None, f"unknown tool {name!r}; available: {', '.join(TOOLS_BY_NAME)}"
+        if tool is None or name not in TOOL_TO_ACTION:  # e.g. memory_search in a run that has no memory store
+            return None, f"unknown tool {name!r}; available here: {', '.join(TOOL_TO_ACTION)}"
         try:
             args = json.loads(arguments or "{}")
         except json.JSONDecodeError:

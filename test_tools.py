@@ -33,7 +33,7 @@ class Registry(unittest.TestCase):
 
     def test_consequential_tools_are_marked(self):
         flags = {t["name"]: t["consequential"] for t in TOOLS}
-        self.assertEqual(flags, {"read_file": False, "apply_patch": True, "run_tests": True})
+        self.assertEqual(flags, {"read_file": False, "apply_patch": True, "run_tests": True, "memory_search": False})
 
     def test_unknown_arguments_are_rejected_by_every_schema(self):
         for tool in TOOLS:

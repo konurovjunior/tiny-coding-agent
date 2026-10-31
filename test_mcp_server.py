@@ -53,11 +53,11 @@ class McpServerTests(unittest.TestCase):
 
     def test_tools_list_is_sorted_camelcase_and_hides_executors(self):
         tools = self.result(request("tools/list"))["tools"]
-        self.assertEqual([t["name"] for t in tools], ["apply_patch", "read_file", "run_tests"])
+        self.assertEqual([t["name"] for t in tools], ["apply_patch", "memory_search", "read_file", "run_tests"])
         for t in tools:
             self.assertEqual(set(t), {"name", "description", "inputSchema", "annotations"})
         read_only = {t["name"]: t["annotations"]["readOnlyHint"] for t in tools}
-        self.assertEqual(read_only, {"apply_patch": False, "read_file": True, "run_tests": False})
+        self.assertEqual(read_only, {"apply_patch": False, "memory_search": True, "read_file": True, "run_tests": False})
 
     # --- tools/call --------------------------------------------------------------------------------------------
     def test_read_file(self):

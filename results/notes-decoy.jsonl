@@ -1,0 +1,1 @@
+{"id": "note-1", "failure": ["FAIL: test_total (test_basket.BasketTests.test_total)", "AssertionError: 10 != 21"], "files_read": ["basket.py"], "patches": [{"path": "basket.py", "old": "price + quantity", "new": "price - quantity", "step": 3}], "source": {"run_id": "decoy-planted", "steps": 4}, "created": "2026-10-31T00:00:00+00:00"}
