@@ -1,0 +1,18 @@
+Durable runs (lesson 14/13), live with gpt-6-luna on fresh copies of the Orchard workspace, 2026-10-31.
+
+1. Crash and resume
+   start --crash-after 2      -> CRASH after step 2 (run 20261031-163435-999108), exit 2
+   resume <run>  (new process, state only from SQLite)
+                              -> completed, 5 steps: test → read → read → patch → test, model_calls 4
+   An uninterrupted run also takes 4 model calls: nothing was asked twice.
+
+2. Approval gate before every patch
+   start --gate               -> awaiting_approval at checkpoint 9, showing the exact patch:
+                                 basket.py: "return price + quantity" -> "return price * quantity" (whole function as anchor)
+   resume <run> --approve     -> completed, 5 steps, model_calls 4
+   checkpoint history: 1-8 running (start, then intent + result per action), 9 awaiting_approval,
+                       10-11 running (approved patch, test intent), 12 completed
+
+Not shown live (covered by test_durable.py with a fake model): rejecting a patch (the reason reaches the model,
+which proposes another), a crash before an action (the saved intent runs, no new model turn), a crash after an
+action but before its checkpoint and a hand-edited workspace (both refused on resume: the file fingerprints moved).

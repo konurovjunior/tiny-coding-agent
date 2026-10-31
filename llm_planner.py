@@ -92,6 +92,22 @@ class LlmPlanner:
         self.input_tokens = self.output_tokens = 0
         self.final_text = None                     # the model's closing words, if it stopped by talking
 
+    # Everything that changes during a run, as plain JSON: what a checkpoint must hold so a resumed run continues
+    # the same conversation (lesson 14/13: "checkpoints too small" lose state). The client, model settings and
+    # memory store are configuration, given again on resume. The conversation itself lives on OpenAI's side,
+    # reached through previous_id, so resuming never re-runs earlier model turns.
+    STATE_FIELDS = ("outbox", "previous_id", "pending", "in_flight", "seen", "model_calls",
+                    "input_tokens", "output_tokens", "final_text", "memory_queries")
+
+    def state(self) -> dict:
+        return {name: getattr(self, name) for name in self.STATE_FIELDS}
+
+    def restore(self, state: dict) -> "LlmPlanner":
+        for name in self.STATE_FIELDS:
+            setattr(self, name, state[name])
+        self.pending = [tuple(item) for item in self.pending]  # JSON turned the (call_id, action) pairs into lists
+        return self
+
     @property
     def cost_usd(self) -> float:
         price_in, price_out = PRICES[self.model]
