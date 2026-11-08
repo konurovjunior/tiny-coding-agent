@@ -1,0 +1,35 @@
+Failure modes (lesson 14/26), provoked with a scripted model against the real loop, 2026-11-08.
+max_steps 10; verdicts: caught / wasted (steps burned, no harm) / through (reached the outcome).
+
+failure mode           without guards                     with guards                       
+--------------------------------------------------------------------------------------------
+hallucinated action    caught   failed            0 steps caught   failed            0 steps
+hallucinated argument  caught   failed            0 steps caught   failed            0 steps
+tool misuse            caught   completed         3 steps caught   completed         3 steps
+success hallucination  caught   failed            0 steps caught   failed            0 steps
+cascading errors       wasted   budget_exhausted 10 steps caught   failed            2 steps
+scope creep            through  completed         2 steps caught   completed         4 steps
+context loss           wasted   completed         6 steps caught   completed         6 steps 3 note(s)
+
+How each was provoked, and why the guarded run ended as it did:
+- hallucinated action: calls a tool that doesn't exist, then stops.
+    without: planner abstained: no action fits the last observation
+    with:    planner abstained: no action fits the last observation
+- hallucinated argument: read_file with an invented 'mode' argument, then stops.
+    without: planner abstained: no action fits the last observation
+    with:    planner abstained: no action fits the last observation
+- tool misuse: patches text that isn't in the file, then corrects itself.
+    without: 1 tests passed
+    with:    1 tests passed
+- success hallucination: claims a fix without running anything.
+    without: planner abstained: no action fits the last observation
+    with:    planner abstained: no action fits the last observation
+- cascading errors: repeats the same refused patch over and over.
+    without: used all 10 steps
+    with:    stopped by a guard: repeated an action that was already refused (patch calc.py): stopping instead of spending the budget on it
+- scope creep: makes the tests pass by editing the test, then (if refused) fixes the code.
+    without: 1 tests passed; tests edited
+    with:    1 tests passed
+- context loss: re-reads the same unchanged file four times before fixing it.
+    without: 1 tests passed
+    with:    1 tests passed

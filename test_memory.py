@@ -11,7 +11,7 @@ from pathlib import Path
 from llm_planner import LlmPlanner
 from main import drive
 from memory import MAX_LINE_CHARS, RepairMemory, failure_lines, note_from_run
-from test_llm_planner import FakeModel, call, reply
+from fake_model import FakeModel, call, reply
 
 FAILING = {"passed": False, "output": "FAIL: test_add (test_calc.T.test_add)\nTraceback ...\n"
                                       "AssertionError: -1 != 5\nRan 1 test in 0.000s\nFAILED (failures=1)"}

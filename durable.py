@@ -2,7 +2,7 @@
 before every patch (lesson 14/13). Built with the standard library to see the mechanism; LangGraph packages the same
 ideas (checkpointers, resume, interrupt).
 
-It runs the same loop as main.drive() with on_invalid="observe" and the same tools and stop rules, plus:
+It runs the same loop as main.drive() with on_invalid="observe", guards.Guards and the same tools and stop rules, plus:
 
   Two checkpoints per action, like a database's write-ahead log:
     1. intent: "about to run this action" (saved BEFORE acting)
@@ -27,6 +27,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
+from guards import Guards
 from llm_planner import LlmPlanner
 from main import _execute
 from memory import RepairMemory
@@ -149,6 +150,16 @@ class DurableRunner:
                 self._checkpoint(state, planner)  # 1. intent, before acting
 
             decision = state.pop("decision", None)
+            verdict = Guards().before(action, trace) if decision is None else None  # a human decision overrides
+            if verdict and verdict[0] == "stop":
+                trace.append({**action, "result": {"error": verdict[1], "guard": "stop"}})
+                state["next_action"] = None
+                return self._finish(state, planner, "failed", f"stopped by a guard: {verdict[1]}")
+            if verdict and verdict[0] == "refuse":  # refused before any human is asked: never worth a review
+                trace.append({**action, "result": {"error": verdict[1], "guard": "refuse"}})
+                state["next_action"] = None
+                self._checkpoint(state, planner)
+                continue
             if state["gate_patches"] and action["tool"] == "patch" and decision is None:
                 state["status"] = "awaiting_approval"
                 state["reason"] = "patch waiting for a human decision"
@@ -164,6 +175,7 @@ class DurableRunner:
                     result = {"error": str(e)}
             if decision:
                 result["human_decision"] = decision["decision"]
+            result = Guards().after(action, result, trace)
             trace.append({**action, "result": result})
             state["next_action"] = None
             state["fingerprints"] = fingerprints(state["workspace"])

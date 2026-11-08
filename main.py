@@ -127,7 +127,7 @@ def _execute(workspace, action):
     raise ValueError(f"unknown tool: {tool!r}")  # e.g. "shell": only test, patch and read exist
 
 
-def drive(workspace, planner, max_steps=6, on_invalid="stop"):
+def drive(workspace, planner, max_steps=6, on_invalid="stop", guards=None):
     """The agent loop: ask the planner for one action, run it, record action + observation, repeat.
 
     planner(trace) sees everything so far and returns the next action, or None to stop (abstain).
@@ -137,6 +137,8 @@ def drive(workspace, planner, max_steps=6, on_invalid="stop"):
     on_invalid="stop" (the stage 4 rule) ends the run on an invalid action. "observe" records the error as the
     action's result instead, so a model planner can read why and correct itself (lesson 14/06); the step still
     counts against the budget, so a model that keeps failing still stops.
+    guards (guards.Guards, optional) gate every step: before() may refuse or stop an action, after() may annotate
+    its result. None keeps the graded stage 4 behaviour exactly.
     """
     if not isinstance(max_steps, int) or max_steps < 1:
         raise ValueError("max_steps must be a positive integer")
@@ -147,6 +149,13 @@ def drive(workspace, planner, max_steps=6, on_invalid="stop"):
             return _finish("failed", trace, "planner abstained: no action fits the last observation")
         if len(trace) >= max_steps:  # checked before acting: the step that would exceed the budget never runs
             return _finish("budget_exhausted", trace, f"used all {max_steps} steps")
+        verdict = guards.before(action, trace) if guards else None
+        if verdict and verdict[0] == "stop":
+            trace.append({**action, "result": {"error": verdict[1], "guard": "stop"}})
+            return _finish("failed", trace, f"stopped by a guard: {verdict[1]}")
+        if verdict and verdict[0] == "refuse":
+            trace.append({**action, "result": {"error": verdict[1], "guard": "refuse"}})
+            continue  # an observation the model can act on, like any refused action
         try:
             result = _execute(workspace, action)
         except ValueError as e:
@@ -154,6 +163,8 @@ def drive(workspace, planner, max_steps=6, on_invalid="stop"):
             if on_invalid == "stop":
                 return _finish("failed", trace, f"invalid action: {e}")
             continue
+        if guards:
+            result = guards.after(action, result, trace)
         trace.append({**action, "result": result})
         if action["tool"] == "test" and result["passed"]:
             return _finish("completed", trace, f"{result['tests']} tests passed")

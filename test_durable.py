@@ -12,7 +12,7 @@ from unittest import mock
 
 import durable
 from durable import DurableRunner, ResumeRefused, SimulatedCrash
-from test_llm_planner import FakeModel, call, reply
+from fake_model import FakeModel, call, reply
 
 REAL_EXECUTE = durable._execute
 
@@ -85,6 +85,15 @@ class Durable(unittest.TestCase):
         [told] = [i for i in model.requests[1]["input"] if i.get("call_id") == "c1"]
         self.assertIn("rejected by a human reviewer: b - a is still wrong", json.loads(told["output"])["error"])
         self.assertEqual(self.runner(model).resume(paused["run_id"], decision="approve")["status"], "completed")
+
+    def test_a_guard_refusal_never_reaches_the_human_gate(self):
+        model = FakeModel(reply(call("c1", "apply_patch", path="tests/test_calc.py", old="5", new="-1")),
+                          reply(call("c2", "apply_patch", path="calc.py", old="a - b", new="a + b")),
+                          reply(call("c3", "run_tests")))
+        paused = self.runner(model).start(self.ws, gate_patches=True)
+        self.assertEqual(paused["awaiting"]["path"], "calc.py")  # the test edit was refused before any review
+        self.assertEqual(self.runner(model).resume(paused["run_id"], decision="approve")["status"], "completed")
+        self.assertIn("assertEqual(add(2, 3), 5)", (self.ws / "tests" / "test_calc.py").read_text())
 
     def test_a_changed_workspace_is_refused_on_resume(self):
         model = FakeModel(*repair_script())

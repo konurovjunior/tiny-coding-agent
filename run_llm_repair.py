@@ -17,6 +17,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+from guards import Guards
 from llm_planner import MODEL, LlmPlanner
 from main import drive
 from memory import RepairMemory, note_from_run
@@ -31,14 +32,14 @@ def snapshot(folder: Path) -> dict[str, str]:
 
 
 def one_run(source: Path, max_steps: int, memory: RepairMemory | None = None, write: bool = True,
-            run_id: str = "", memory_first: bool = False) -> dict:
+            run_id: str = "", memory_first: bool = False, guarded: bool = True) -> dict:
     with tempfile.TemporaryDirectory() as tmp:
         ws = Path(tmp) / "workspace"
         shutil.copytree(source, ws)
         tests_before = snapshot(ws / "tests")
         code_before = {k: v for k, v in snapshot(ws).items() if not k.startswith("tests/")}
         planner = LlmPlanner(ws, memory=memory, memory_first=memory_first)
-        result = drive(ws, planner, max_steps=max_steps, on_invalid="observe")
+        result = drive(ws, planner, max_steps=max_steps, on_invalid="observe", guards=Guards() if guarded else None)
         code_after = {k: v for k, v in snapshot(ws).items() if not k.startswith("tests/")}
         edited_tests = snapshot(ws / "tests") != tests_before
     changed = {k: code_after[k] for k in code_after if code_after[k] != code_before.get(k)}
@@ -69,6 +70,7 @@ def main() -> None:
     parser.add_argument("--memory", type=Path, help="a note store (JSONL) the runs search and, unless --no-write, add to")
     parser.add_argument("--no-write", action="store_true", help="search the store but never add notes")
     parser.add_argument("--memory-first", action="store_true", help="tell the model to search memory once first")
+    parser.add_argument("--no-guards", action="store_true", help="run without guards.Guards (as before 2026-11-08)")
     args = parser.parse_args()
 
     memory = RepairMemory(args.memory) if args.memory else None
@@ -76,7 +78,7 @@ def main() -> None:
     for i in range(1, args.runs + 1):
         notes_before = len(memory.notes()) if memory else 0
         r = one_run(args.workspace.resolve(), args.max_steps, memory, not args.no_write, f"{args.label}-run{i}",
-                    args.memory_first)
+                    args.memory_first, not args.no_guards)
         r["notes_available"] = notes_before
         runs.append(r)
         searched = f" memory: {len(r['memory_queries'])} search(es), {notes_before} note(s)" if memory else ""
@@ -88,7 +90,7 @@ def main() -> None:
     lines = [
         f"model planner on {args.workspace.name}: {ok}/{len(runs)} repaired (tests pass, tests/ untouched)",
         f"memory: {args.memory or 'off'}{' (read-only)' if args.no_write else ''}"
-        f"{', searched first by rule' if args.memory_first else ''}",
+        f"{', searched first by rule' if args.memory_first else ''}{', no guards' if args.no_guards else ', guards on'}",
         f"model {MODEL}, max_steps {args.max_steps}, cost ${sum(r['cost_usd'] for r in runs):.5f} total, "
         f"${sum(r['cost_usd'] for r in runs) / len(runs):.5f} per run",
         f"steps when repaired: {steps}   invalid actions: {sum(r['invalid_actions'] for r in runs)}   "
