@@ -150,7 +150,7 @@ class DurableRunner:
                 self._checkpoint(state, planner)  # 1. intent, before acting
 
             decision = state.pop("decision", None)
-            verdict = Guards().before(action, trace) if decision is None else None  # a human decision overrides
+            verdict = Guards(pve=True).before(action, trace) if decision is None else None  # a human decision overrides
             if verdict and verdict[0] == "stop":
                 trace.append({**action, "result": {"error": verdict[1], "guard": "stop"}})
                 state["next_action"] = None
@@ -175,7 +175,7 @@ class DurableRunner:
                     result = {"error": str(e)}
             if decision:
                 result["human_decision"] = decision["decision"]
-            result = Guards().after(action, result, trace)
+            result = Guards(pve=True).after(action, result, trace)
             trace.append({**action, "result": result})
             state["next_action"] = None
             state["fingerprints"] = fingerprints(state["workspace"])
@@ -189,7 +189,8 @@ class DurableRunner:
     def _planner(self, state) -> LlmPlanner:
         memory = RepairMemory(state["memory"]) if state["memory"] else None
         kwargs = {"client": self.client} if self.client else {}
-        return LlmPlanner(state["workspace"], memory=memory, memory_first=state["memory_first"], **kwargs)
+        return LlmPlanner(state["workspace"], memory=memory, memory_first=state["memory_first"],
+                          untrusted_labels=True, **kwargs)
 
     def _checkpoint(self, state, planner) -> None:
         state["planner"] = planner.state()

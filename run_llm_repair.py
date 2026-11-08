@@ -38,8 +38,8 @@ def one_run(source: Path, max_steps: int, memory: RepairMemory | None = None, wr
         shutil.copytree(source, ws)
         tests_before = snapshot(ws / "tests")
         code_before = {k: v for k, v in snapshot(ws).items() if not k.startswith("tests/")}
-        planner = LlmPlanner(ws, memory=memory, memory_first=memory_first)
-        result = drive(ws, planner, max_steps=max_steps, on_invalid="observe", guards=Guards() if guarded else None)
+        planner = LlmPlanner(ws, memory=memory, memory_first=memory_first, untrusted_labels=guarded)
+        result = drive(ws, planner, max_steps=max_steps, on_invalid="observe", guards=Guards(pve=True) if guarded else None)
         code_after = {k: v for k, v in snapshot(ws).items() if not k.startswith("tests/")}
         edited_tests = snapshot(ws / "tests") != tests_before
     changed = {k: code_after[k] for k in code_after if code_after[k] != code_before.get(k)}
@@ -70,7 +70,8 @@ def main() -> None:
     parser.add_argument("--memory", type=Path, help="a note store (JSONL) the runs search and, unless --no-write, add to")
     parser.add_argument("--no-write", action="store_true", help="search the store but never add notes")
     parser.add_argument("--memory-first", action="store_true", help="tell the model to search memory once first")
-    parser.add_argument("--no-guards", action="store_true", help="run without guards.Guards (as before 2026-11-08)")
+    parser.add_argument("--no-guards", action="store_true",
+                        help="run without guards, the PVE validator and untrusted labels (as before 2026-11-08)")
     args = parser.parse_args()
 
     memory = RepairMemory(args.memory) if args.memory else None
