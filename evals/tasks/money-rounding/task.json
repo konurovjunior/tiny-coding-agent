@@ -1,0 +1,10 @@
+{
+  "title": "Symptom vs cause: the test fails in cart.py, the bug is in money.py",
+  "kind": "multi-file",
+  "issue": "Converting tenge to tiyn loses a tiyn on prices like 19.99. Every conversion must be exact.",
+  "allowed": ["money.py", "cart.py"],
+  "gold": [{"path": "money.py", "old": "return int(amount * 100)", "new": "return round(amount * 100)"}],
+  "decoys": [{"why": "rounds the cart sum instead of fixing to_tiyn: visible passes, to_tiyn(0.29) is still 28",
+              "patches": [{"path": "cart.py", "old": "return sum(to_tiyn(p) for p in prices)",
+                           "new": "return round(sum(prices) * 100)"}]}]
+}

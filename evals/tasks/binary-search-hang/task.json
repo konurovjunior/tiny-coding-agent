@@ -1,0 +1,8 @@
+{
+  "title": "No error message: the tests hang until the 5 s timeout",
+  "kind": "timeout, no traceback",
+  "issue": "find hangs on some inputs instead of returning.",
+  "allowed": ["search.py"],
+  "gold": [{"path": "search.py", "old": "            lo = mid\n", "new": "            lo = mid + 1\n"}],
+  "decoys": []
+}

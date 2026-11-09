@@ -1,0 +1,11 @@
+{
+  "title": "Half-fix trap: the obvious fix breaks every 400th year",
+  "kind": "partial-fix trap",
+  "issue": "is_leap must follow the Gregorian calendar rules.",
+  "allowed": ["dates.py"],
+  "gold": [{"path": "dates.py", "old": "return year % 4 == 0",
+            "new": "return year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)"}],
+  "decoys": [{"why": "skips centuries but forgets the 400 rule: visible and fail_to_pass pass, 2000 breaks",
+              "patches": [{"path": "dates.py", "old": "return year % 4 == 0",
+                           "new": "return year % 4 == 0 and year % 100 != 0"}]}]
+}

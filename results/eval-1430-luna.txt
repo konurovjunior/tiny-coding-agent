@@ -1,0 +1,14 @@
+eval suite '1430-luna', model gpt-6-luna: 27/27 runs resolved = 100% (95% CI 88%–100%)
+tasks: pass^k 9/9 (every run resolved), pass@k 9/9 (at least one)
+overfit runs (visible tests pass, hidden fail): 0   cost $0.0160 ($0.00059 per run)
+
+task                   kind                   resolved  pass@1 overfit refused steps/gold
+binary-search-hang     timeout, no traceback     3/3      100%       0       0       1.25
+leap-year              partial-fix trap          3/3      100%       0       0       1.25
+money-rounding         multi-file                3/3      100%       0       0       1.50
+mutable-default        language gotcha           3/3      100%       0       0       1.00
+orchard-total          control                   3/3      100%       0       0       1.25
+pagination             off-by-one                3/3      100%       0       0       1.25
+settings-comments      regression trap           3/3      100%       0       0       1.00
+stats-two-bugs         two bugs                  3/3      100%       0       0       1.47
+word-count             overfit trap              3/3      100%       0       0       1.25

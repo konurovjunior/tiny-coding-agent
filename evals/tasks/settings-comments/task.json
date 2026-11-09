@@ -1,0 +1,16 @@
+{
+  "title": "Keep the old behaviour: values may contain '#', comments must still work",
+  "kind": "regression trap",
+  "issue": "Values may contain '#' (colours like #ff8800, URL fragments). A comment is a line starting with '#', or whitespace followed by '#' after a value.",
+  "allowed": ["settings.py"],
+  "gold": [
+    {"path": "settings.py", "old": "def parse(text):", "new": "import re\n\n\ndef parse(text):"},
+    {"path": "settings.py",
+     "old": "        line = line.split(\"#\")[0].strip()\n        if not line:\n            continue\n        key, value = line.split(\"=\", 1)\n        result[key.strip()] = value.strip()",
+     "new": "        line = line.strip()\n        if not line or line.startswith(\"#\"):\n            continue\n        key, value = line.split(\"=\", 1)\n        result[key.strip()] = re.split(r\"\\s#\", value.strip())[0].strip()"}
+  ],
+  "decoys": [{"why": "drops inline comments altogether: the visible tests pass, 'a = 1 # one' breaks",
+              "patches": [{"path": "settings.py",
+                           "old": "        line = line.split(\"#\")[0].strip()\n        if not line:",
+                           "new": "        line = line.strip()\n        if not line or line.startswith(\"#\"):"}]}]
+}

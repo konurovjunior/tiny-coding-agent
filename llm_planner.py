@@ -85,7 +85,8 @@ class LlmPlanner:
     """Called by drive() as planner(trace) -> next action, or None to stop. Keeps the model conversation between calls."""
 
     def __init__(self, workspace, client=None, model: str = MODEL, max_model_calls: int = 12,
-                 memory: RepairMemory | None = None, memory_first: bool = False, untrusted_labels: bool = False):
+                 memory: RepairMemory | None = None, memory_first: bool = False, untrusted_labels: bool = False,
+                 issue: str | None = None):
         self.client = client or OpenAI(timeout=60, max_retries=2)
         self.model = model
         self.memory = memory  # None: no memory_search tool at all (the baseline)
@@ -95,8 +96,12 @@ class LlmPlanner:
         self.max_model_calls = max_model_calls  # a second bound: model turns, including ones whose calls were all bad
         root = Path(workspace).resolve()
         files = sorted(str(p.relative_to(root)) for p in root.rglob("*.py") if "__pycache__" not in p.parts)
+        # issue: the ticket text, like a SWE-bench issue (lesson 14/30). Hidden tests check behaviour the visible tests
+        # don't show, so the model must be told the intended behaviour; without an issue the message is as before.
         self.outbox: list[dict] = [{"role": "user", "content": "The tests in this workspace fail. "
-                                                               "Find the bug and fix it.\nFiles: " + ", ".join(files)}]
+                                                               "Find the bug and fix it."
+                                                               + (f"\nIssue: {issue}" if issue else "")
+                                                               + "\nFiles: " + ", ".join(files)}]
         self.previous_id: str | None = None        # the last response: the next turn continues from it
         self.requests: list[list[dict]] = []       # what was sent each turn (kept for the trace and the tests)
         self.pending: list[tuple[str, dict]] = []  # (call_id, action) from the last model turn, not yet run

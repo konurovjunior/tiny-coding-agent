@@ -1,0 +1,13 @@
+{
+  "title": "Two independent bugs in one file: both must be fixed",
+  "kind": "two bugs",
+  "issue": "mean and median must behave as their docstrings say.",
+  "allowed": ["stats.py"],
+  "gold": [
+    {"path": "stats.py", "old": "    return sum(values) / len(values)",
+     "new": "    if not values:\n        raise ValueError(\"mean of an empty list\")\n    return sum(values) / len(values)"},
+    {"path": "stats.py", "old": "        return ordered[middle]\n    return ordered[middle]",
+     "new": "        return ordered[middle]\n    return (ordered[middle - 1] + ordered[middle]) / 2"}
+  ],
+  "decoys": []
+}

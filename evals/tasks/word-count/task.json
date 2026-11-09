@@ -1,0 +1,10 @@
+{
+  "title": "Overfit trap: a fix shaped by the visible tests misses tabs and newlines",
+  "kind": "overfit trap",
+  "issue": "word_count counts runs of non-whitespace characters: spaces, tabs and newlines all separate words.",
+  "allowed": ["text_stats.py"],
+  "gold": [{"path": "text_stats.py", "old": "return len(text.split(\" \"))", "new": "return len(text.split())"}],
+  "decoys": [{"why": "drops empty strings after split(' '): the visible tests pass, 'a\\nb\\tc' still counts 1",
+              "patches": [{"path": "text_stats.py", "old": "return len(text.split(\" \"))",
+                           "new": "return len([w for w in text.split(\" \") if w])"}]}]
+}

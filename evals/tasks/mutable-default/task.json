@@ -1,0 +1,14 @@
+{
+  "title": "Python gotcha: a mutable default argument shared between calls",
+  "kind": "language gotcha",
+  "issue": "Each call without `lines` must start a new order. With `lines`, add_line appends to that same list and returns it.",
+  "allowed": ["orders.py"],
+  "gold": [
+    {"path": "orders.py", "old": "def add_line(sku, qty, lines=[]):", "new": "def add_line(sku, qty, lines=None):"},
+    {"path": "orders.py", "old": "    lines.append((sku, qty))",
+     "new": "    if lines is None:\n        lines = []\n    lines.append((sku, qty))"}
+  ],
+  "decoys": [{"why": "copies the list on every call: new orders are separate, but the caller's list is no longer appended to",
+              "patches": [{"path": "orders.py", "old": "    lines.append((sku, qty))\n    return lines",
+                           "new": "    lines = list(lines)\n    lines.append((sku, qty))\n    return lines"}]}]
+}

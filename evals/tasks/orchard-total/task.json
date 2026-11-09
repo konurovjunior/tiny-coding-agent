@@ -1,0 +1,8 @@
+{
+  "title": "One-line operator bug (the course's Orchard task, the control)",
+  "kind": "control",
+  "issue": "total(price, quantity) must return the price of the whole line: price times quantity.",
+  "allowed": ["basket.py"],
+  "gold": [{"path": "basket.py", "old": "return price + quantity", "new": "return price * quantity"}],
+  "decoys": []
+}
