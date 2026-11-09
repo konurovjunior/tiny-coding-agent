@@ -1,0 +1,27 @@
+batch nightly-2026-11-09-1737-traced-chaos: 9 done, 0 dead, 0 not finished; retries 8; wait p50/p95 4.31/22.08 s, run p50/p95 16.26/20.1 s
+
+eval suite 'nightly-2026-11-09-1737-traced-chaos', model queue: 9/9 runs resolved = 100% (95% CI 70%–100%)
+tasks: pass^k 9/9 (every run resolved), pass@k 9/9 (at least one)
+overfit runs (visible tests pass, hidden fail): 0   cost $0.0058 ($0.00064 per run)
+
+task                   kind                   resolved  pass@1 overfit refused steps/gold
+binary-search-hang     timeout, no traceback     1/1      100%       0       0       1.25
+leap-year              partial-fix trap          1/1      100%       0       0       1.25
+money-rounding         multi-file                1/1      100%       0       0       1.50
+mutable-default        language gotcha           1/1      100%       0       0       1.00
+orchard-total          control                   1/1      100%       0       0       1.25
+pagination             off-by-one                1/1      100%       0       0       1.25
+settings-comments      regression trap           1/1      100%       0       0       1.00
+stats-two-bugs         two bugs                  1/1      100%       0       0       1.80
+word-count             overfit trap              1/1      100%       0       0       1.25
+
+gate vs baseline '1430-luna' (100%): FAIL
+  binary-search-hang: 3/3 → 1/1
+  leap-year: 3/3 → 1/1
+  money-rounding: 3/3 → 1/1
+  mutable-default: 3/3 → 1/1
+  orchard-total: 3/3 → 1/1
+  pagination: 3/3 → 1/1
+  settings-comments: 3/3 → 1/1
+  stats-two-bugs: 3/3 → 1/1
+  word-count: 3/3 → 1/1

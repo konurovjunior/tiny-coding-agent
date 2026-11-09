@@ -105,6 +105,13 @@ class Numbers(unittest.TestCase):
         self.assertFalse(ok)
         self.assertTrue(why[0].startswith("resolve rate"))
 
+    def test_gate_compares_rates_so_a_smaller_k_is_not_a_regression(self):
+        base = {"rate": 1.0, "per_task": {"a": {"k": 3, "resolved": 3}}}
+        self.assertEqual(gate({"rate": 1.0, "per_task": {"a": {"k": 1, "resolved": 1}}}, base), (True, []))
+        ok, why = gate({"rate": 1.0, "per_task": {"a": {"k": 1, "resolved": 0}}}, base)
+        self.assertFalse(ok)
+        self.assertIn("a: 3/3 → 0/1", why)
+
 
 if __name__ == "__main__":
     unittest.main()

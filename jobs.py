@@ -13,6 +13,7 @@ nightly is what a scheduler runs. Its exit code is the gate's (0 PASS, 1 FAIL), 
 alert on it. A crontab line for 03:00 every night (the model key comes from work/.env, as for every live run):
   0 3 * * *  cd <this folder> && ../../../.venv/bin/python jobs.py nightly >> state/nightly.log 2>&1
 
+--trace langfuse (work, nightly) sends one trace per job attempt, with eval scores, to Langfuse (lesson 14/24).
 --chaos P makes P of all model calls fail with a timeout before they reach OpenAI: the retries, backoff and resume
 from checkpoints are then exercised on real runs, and the eval gate shows whether the results changed.
 State: state/jobs.sqlite (queue), state/job-runs.sqlite (durable checkpoints), state/jobs/<id>/ (eval workspaces).
@@ -28,6 +29,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 
+import telemetry
 from durable import DurableRunner
 from job_queue import JobQueue, Worker, handle_eval, handle_repair
 
@@ -128,6 +130,7 @@ def main() -> int:
     wk = sub.add_parser("work")
     wk.add_argument("--workers", type=int, default=3)
     wk.add_argument("--chaos", type=float, default=0.0)
+    wk.add_argument("--trace", choices=["off", "langfuse"], default="off")
     st = sub.add_parser("stats")
     st.add_argument("--batch")
     rq = sub.add_parser("requeue")
@@ -140,8 +143,10 @@ def main() -> int:
     ni.add_argument("--workers", type=int, default=3)
     ni.add_argument("--chaos", type=float, default=0.0)
     ni.add_argument("--label", default="")
+    ni.add_argument("--trace", choices=["off", "langfuse"], default="off")
     args = parser.parse_args()
     queue = JobQueue(args.db)
+    telemetry.setup(getattr(args, "trace", "off"))  # lesson 14/24: one trace per job attempt, eval scores on it
 
     if args.command == "enqueue-repair":
         source, target = args.source.resolve(), args.copy_to.resolve()
@@ -155,6 +160,7 @@ def main() -> int:
         print(f"{n} eval jobs in batch {batch}")
     elif args.command == "work":
         work(queue, args.workers, args.chaos)
+        telemetry.flush()
     elif args.command == "stats":
         print(json.dumps(queue.stats(args.batch), indent=2, ensure_ascii=False))
     elif args.command == "requeue":
@@ -169,6 +175,7 @@ def main() -> int:
         batch = f"nightly-{stamp}{'-' + args.label if args.label else ''}"
         print(f"{enqueue_eval(queue, args.runs, batch, None, True)} eval jobs in batch {batch}", flush=True)
         work(queue, args.workers, args.chaos)
+        telemetry.flush()
         text, ok = report(queue, batch, gate_it=True)
         print(text)
         out = HERE / "results" / f"{batch}.txt"

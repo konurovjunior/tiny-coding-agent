@@ -1,0 +1,11 @@
+# Local changes on top of Langfuse's official docker-compose.yml (kept unchanged, copied 2026-11-09 from
+# https://raw.githubusercontent.com/langfuse/langfuse/main/docker-compose.yml, so an update is a plain copy).
+# Compose merges this file automatically. Ports are replaced (!override), not appended.
+services:
+  langfuse-web:
+    ports: !override
+      - 127.0.0.1:3000:3000     # the official file binds 0.0.0.0: anyone on the Wi-Fi could reach the UI
+  minio:
+    ports: !override
+      - 127.0.0.1:9090:9000
+      - 127.0.0.1:9091:9001

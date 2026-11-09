@@ -35,6 +35,7 @@ from pathlib import Path
 
 import openai
 
+import telemetry
 from durable import DurableRunner
 from llm_planner import MODEL, PRICES
 
@@ -294,13 +295,20 @@ def run_cost(runner: DurableRunner, run_id: str) -> tuple[dict, float]:
     return state, cost
 
 
-def durable_repair(runner: DurableRunner, job: dict, workspace: Path, max_steps: int, issue: str | None) -> dict:
+def durable_repair(runner: DurableRunner, job: dict, workspace: Path, max_steps: int, issue: str | None,
+                   instrument=None) -> dict:
     """Start the job's durable run, or resume it if an earlier attempt got as far as a checkpoint."""
     try:
         runner.store.latest(job["id"])
     except KeyError:
-        return runner.start(workspace, max_steps=max_steps, run_id=job["id"], issue=issue)
-    return runner.resume(job["id"])  # ResumeRefused (files changed under the run) is permanent: the DLQ
+        return runner.start(workspace, max_steps=max_steps, run_id=job["id"], issue=issue, instrument=instrument)
+    return runner.resume(job["id"], instrument=instrument)  # ResumeRefused (files changed under the run): the DLQ
+
+
+def job_trace(job: dict, task: str, issue: str | None):
+    """One trace per attempt: a retried job shows as several traces with the same job id, the last one finishing."""
+    return telemetry.agent_run(f"{job['kind']} {task}", job.get("batch") or job["id"], task, issue,
+                               tags=["job", job["kind"]], metadata={"job_id": job["id"], "attempt": job["attempts"]})
 
 
 def handle_repair(job: dict, worker: Worker) -> dict:
@@ -309,9 +317,13 @@ def handle_repair(job: dict, worker: Worker) -> dict:
     workspace = Path(p.get("workspace", ""))
     if not p.get("workspace") or not (workspace / "tests").is_dir():
         raise ValueError(f"workspace {p.get('workspace')!r} has no tests/ folder")  # permanent: retrying won't help
-    summary = durable_repair(worker.runner, job, workspace, p.get("max_steps", 12), p.get("issue"))
-    _, cost = run_cost(worker.runner, job["id"])
-    return {**summary, "outcome": "resolved" if summary["status"] == "completed" else "unresolved", "cost_usd": cost}
+    with job_trace(job, workspace.name, p.get("issue")) as run:
+        summary = durable_repair(worker.runner, job, workspace, p.get("max_steps", 12), p.get("issue"), run.instrument)
+        _, cost = run_cost(worker.runner, job["id"])
+        result = {**summary, "outcome": "resolved" if summary["status"] == "completed" else "unresolved",
+                  "cost_usd": cost}
+        run.finish(result)
+    return result
 
 
 def handle_eval(job: dict, worker: Worker, jobs_dir: Path) -> dict:
@@ -323,10 +335,13 @@ def handle_eval(job: dict, worker: Worker, jobs_dir: Path) -> dict:
     ws = jobs_dir / job["id"] / "workspace"
     if not ws.exists():
         shutil.copytree(task["dir"] / "workspace", ws, ignore=shutil.ignore_patterns("__pycache__"))
-    summary = durable_repair(worker.runner, job, ws, p.get("max_steps", MAX_STEPS),
-                             task["issue"] if p.get("with_issue", True) else None)
-    graded = grade(task, ws)
-    state, cost = run_cost(worker.runner, job["id"])
+    issue = task["issue"] if p.get("with_issue", True) else None
+    with job_trace(job, task["id"], issue) as run:
+        summary = durable_repair(worker.runner, job, ws, p.get("max_steps", MAX_STEPS), issue, run.instrument)
+        graded = grade(task, ws)
+        state, cost = run_cost(worker.runner, job["id"])
+        run.finish({"state": summary["status"], "resolved": graded["resolved"], "overfit": graded["overfit"]})
+        run.score_eval(graded, len(state["trace"]), gold_steps(task))
     trace = state["trace"]
     return {"task": task["id"], "run_id": job["id"], "state": summary["status"], **graded,
             "outcome": "resolved" if graded["resolved"] else "unresolved",

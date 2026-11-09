@@ -25,6 +25,7 @@ Usage (from this folder):
   python eval_suite.py --runs 3 --no-issue --gate     ablation: no ticket text, only the visible tests
   python eval_suite.py --runs 3 --save-baseline       store this result as evals/baseline.json (last known good)
   python eval_suite.py --runs 3 --gate                compare with the baseline; exit code 1 on a regression
+  python eval_suite.py --runs 3 --trace langfuse      also send every run's trace + eval scores to Langfuse
 """
 
 import argparse
@@ -36,6 +37,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+import telemetry
 from guards import Guards, validate_patch
 from llm_planner import MODEL, LlmPlanner
 from main import apply_patch, drive, run_tests
@@ -46,7 +48,9 @@ BASELINE = HERE / "evals" / "baseline.json"
 TEST_TIMEOUT = 5            # seconds per test run, as in the agent's own run_tests
 MAX_STEPS = 16              # more than Orchard's 12: two-bug and two-file tasks need extra reads and patches
 GATE_RATE_DROP = 0.10       # FAIL if the overall resolve rate drops by more than 10 points...
-GATE_TASK_DROP = 2          # ...or any task loses 2 or more of its k successes compared with the baseline
+GATE_TASK_DROP = 0.5        # ...or any task's resolve rate drops by more than 50 points (3/3 → 1/3; 1/1 → 0/1).
+                            # Rates, not counts: a k=1 nightly against a k=3 baseline is not a loss of 2 successes
+                            # (that bug made the first traced nightly FAIL on 9/9, 2026-11-09)
 
 
 # ---------------------------------------------------------------------------------------------------------- tasks
@@ -161,15 +165,21 @@ def run_agent(task: dict, run_id: str, model: str = MODEL, max_steps: int = MAX_
               with_issue: bool = True) -> dict:
     """One live attempt: a fresh copy, the model planner with the issue text, the loop with all guards on
     (scope, repeats, re-reads, PVE, untrusted labels), then grading with the hidden tests."""
-    with tempfile.TemporaryDirectory() as tmp:
+    issue = task["issue"] if with_issue else None
+    session = run_id.rsplit(f"-{task['id']}-", 1)[0]  # the batch label: one Langfuse session per eval batch
+    with tempfile.TemporaryDirectory() as tmp, \
+            telemetry.agent_run(f"eval {task['id']}", session, task["id"], issue, tags=["eval", task["kind"], model],
+                                metadata={"run_id": run_id, "model": model}) as run:
         ws = fresh_workspace(task, Path(tmp))
-        planner = LlmPlanner(ws, client=client, model=model, untrusted_labels=True,
-                               issue=task["issue"] if with_issue else None)
+        planner = run.instrument(LlmPlanner(ws, client=client, model=model, untrusted_labels=True, issue=issue))
         result = drive(ws, planner, max_steps=max_steps, on_invalid="observe", guards=Guards(pve=True))
         graded = grade(task, ws)
+        run.finish({"state": result["state"], "resolved": graded["resolved"], "overfit": graded["overfit"],
+                    "changed_files": graded["changed_files"]})
+        run.score_eval(graded, result["steps"], gold_steps(task))
     trace = result["trace"]
     return {
-        "task": task["id"], "run_id": run_id, "model": model,
+        "task": task["id"], "run_id": run_id, "model": model, "trace_id": run.trace_id if telemetry.enabled() else None,
         "state": result["state"], "reason": result["reason"], **graded,
         "steps": result["steps"], "gold_steps": gold_steps(task),
         "tools": [s["tool"] for s in trace],
@@ -224,7 +234,7 @@ def summarize(runs: list[dict]) -> dict:
 
 
 def gate(current: dict, baseline: dict) -> tuple[bool, list[str]]:
-    """PASS unless the overall rate fell by more than GATE_RATE_DROP, or a task lost GATE_TASK_DROP+ successes.
+    """PASS unless the overall rate fell by more than GATE_RATE_DROP, or a task's rate fell by more than GATE_TASK_DROP.
     With 27 runs a 10-point move is inside the noise, so a FAIL means "read the traces", not "proven worse"."""
     reasons = []
     drop = baseline["rate"] - current["rate"]
@@ -235,7 +245,7 @@ def gate(current: dict, baseline: dict) -> tuple[bool, list[str]]:
         now = current["per_task"].get(task_id)
         if now is None:
             reasons.append(f"{task_id}: in the baseline but not run now")
-        elif base["resolved"] - now["resolved"] >= GATE_TASK_DROP:
+        elif base["resolved"] / base["k"] - now["resolved"] / now["k"] > GATE_TASK_DROP:
             reasons.append(f"{task_id}: {base['resolved']}/{base['k']} → {now['resolved']}/{now['k']}")
     return not reasons, reasons
 
@@ -272,10 +282,13 @@ def main() -> None:
     parser.add_argument("--label", default=datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M"))
     parser.add_argument("--no-issue", action="store_true",
                         help="ablation: hide the issue text, so only the visible tests say what is wanted")
+    parser.add_argument("--trace", choices=["off", "langfuse"], default="off",
+                        help="langfuse: send each run's trace and its eval scores to Langfuse (lesson 14/24)")
     parser.add_argument("--save-baseline", action="store_true")
     parser.add_argument("--gate", action="store_true")
     args = parser.parse_args()
     tasks = load_tasks(args.tasks.split(",") if args.tasks else None)
+    telemetry.setup(args.trace)
 
     if args.validate:
         bad = 0
@@ -303,6 +316,7 @@ def main() -> None:
                 print(f"{t['id']:22} run {i}: {verdict:16} steps {r['steps']:2}/{r['gold_steps']} gold  "
                       f"${r['cost_usd']:.5f}  {' → '.join(r['tools'])}", flush=True)
 
+    telemetry.flush()
     summary = summarize(runs)
     text = report(summary, args.label, args.model, tasks)
     if args.gate:

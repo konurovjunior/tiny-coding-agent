@@ -102,7 +102,7 @@ class DurableRunner:
 
     # --- public ------------------------------------------------------------------------------------------------
     def start(self, workspace, max_steps=12, gate_patches=False, memory=None, memory_first=False,
-              crash_after=None, run_id=None, issue=None) -> dict:
+              crash_after=None, run_id=None, issue=None, instrument=None) -> dict:
         """run_id: chosen by the caller when it must find the run again after a crash (a queued job uses its own id,
         lesson 14/29); issue: the ticket text for the model (lesson 14/30)."""
         workspace = Path(workspace).resolve()
@@ -114,11 +114,13 @@ class DurableRunner:
             "trace": [], "next_action": None, "fingerprints": fingerprints(workspace), "planner": None,
         }
         planner = self._planner(state)
+        if instrument:  # lesson 14/24: wraps the planner and its model client for tracing
+            planner = instrument(planner)
         state["planner"] = planner.state()
         self.store.save(state)
         return self._loop(state, planner, crash_after)
 
-    def resume(self, run_id, decision=None, reason="", crash_after=None) -> dict:
+    def resume(self, run_id, decision=None, reason="", crash_after=None, instrument=None) -> dict:
         state = self.store.latest(run_id)
         if state["status"] in FINISHED:
             return self._summary(state)
@@ -133,6 +135,8 @@ class DurableRunner:
             state["decision"] = {"decision": decision, "reason": reason}
             state["status"] = "running"
         planner = self._planner(state).restore(state["planner"])
+        if instrument:
+            planner = instrument(planner)
         return self._loop(state, planner, crash_after)
 
     def status(self, run_id) -> dict:
