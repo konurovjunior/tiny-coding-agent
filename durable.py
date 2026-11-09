@@ -102,10 +102,13 @@ class DurableRunner:
 
     # --- public ------------------------------------------------------------------------------------------------
     def start(self, workspace, max_steps=12, gate_patches=False, memory=None, memory_first=False,
-              crash_after=None) -> dict:
+              crash_after=None, run_id=None, issue=None) -> dict:
+        """run_id: chosen by the caller when it must find the run again after a crash (a queued job uses its own id,
+        lesson 14/29); issue: the ticket text for the model (lesson 14/30)."""
         workspace = Path(workspace).resolve()
         state = {
-            "run_id": datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:6],
+            "run_id": run_id or datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:6],
+            "issue": issue,
             "status": "running", "reason": "", "workspace": str(workspace), "max_steps": max_steps,
             "gate_patches": gate_patches, "memory": str(memory) if memory else None, "memory_first": memory_first,
             "trace": [], "next_action": None, "fingerprints": fingerprints(workspace), "planner": None,
@@ -190,7 +193,7 @@ class DurableRunner:
         memory = RepairMemory(state["memory"]) if state["memory"] else None
         kwargs = {"client": self.client} if self.client else {}
         return LlmPlanner(state["workspace"], memory=memory, memory_first=state["memory_first"],
-                          untrusted_labels=True, **kwargs)
+                          untrusted_labels=True, issue=state.get("issue"), **kwargs)  # .get: older checkpoints
 
     def _checkpoint(self, state, planner) -> None:
         state["planner"] = planner.state()
