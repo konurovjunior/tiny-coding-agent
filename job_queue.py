@@ -168,6 +168,16 @@ class JobQueue:
             self._event(db, job_id, "dead", f"{why}: {message}")
             return "dead"
 
+    def cancel(self, job_id: str) -> bool:
+        """Cancel a job nobody has started yet (queued, not running): it goes to 'dead' with a 'canceled' error.
+        A running job can't be stopped mid-step here; the caller is told so (A2A: TaskNotCancelable)."""
+        with self._tx() as db:
+            cur = db.execute("UPDATE jobs SET status = 'dead', finished = ?, last_error = 'canceled' "
+                             "WHERE id = ? AND status = 'queued'", (self.clock(), job_id))
+            if cur.rowcount == 1:
+                self._event(db, job_id, "canceled")
+            return cur.rowcount == 1
+
     def requeue_dead(self, job_id: str) -> None:
         """After a person fixed the cause: give a DLQ job a fresh set of attempts."""
         with self._tx() as db:
@@ -262,15 +272,20 @@ class Worker:
         self.queue.complete(job["id"], self.id, result)
         return self.queue.get(job["id"])
 
-    def run(self, max_jobs: int | None = None, idle_exit: bool = True, idle_sleep: float = 1.0) -> int:
-        """Work until the queue has nothing due (idle_exit) or max_jobs were taken. Returns how many were taken."""
+    def run(self, max_jobs: int | None = None, idle_exit: bool = True, idle_sleep: float = 1.0,
+            stop: threading.Event | None = None) -> int:
+        """Work until the queue has nothing due (idle_exit), max_jobs were taken, or stop is set (a long-running
+        server's workers). Returns how many jobs were taken."""
         taken = 0
-        while max_jobs is None or taken < max_jobs:
+        while (max_jobs is None or taken < max_jobs) and not (stop and stop.is_set()):
             job = self.run_once()
             if job is None:
                 if idle_exit and not self._anything_pending():
                     return taken
-                time.sleep(idle_sleep)  # jobs are waiting out a backoff, or another worker holds them
+                if stop:
+                    stop.wait(idle_sleep)
+                else:
+                    time.sleep(idle_sleep)  # jobs are waiting out a backoff, or another worker holds them
                 continue
             taken += 1
         return taken
