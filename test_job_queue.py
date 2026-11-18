@@ -1,7 +1,7 @@
 """Lesson 14/29: the queue-based runtime. Leases, fencing, retries with backoff, the DLQ, resume after a killed worker.
 A fake clock expires leases without waiting; a scripted model plays the agent: no API calls, no cost.
 
-Run (from this folder):  ../../../.venv/bin/python -m unittest test_job_queue -v
+Run (from this folder):  python -m unittest test_job_queue -v
 """
 
 import tempfile

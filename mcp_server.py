@@ -15,7 +15,7 @@ Two kinds of failure, as the MCP spec separates them:
     so the MODEL sees the reason and can correct itself (re-read the file, retry the patch).
 Not covered: -32020 (HTTP header vs body mismatch) only exists on HTTP; this server speaks stdio.
 
-Run:  python mcp_server.py --workspace ../../../course/projects/tiny-coding-agent/examples/workspace
+Run:  python mcp_server.py --workspace examples/workspace
       then type one JSON-RPC request per line (or connect an MCP client that speaks 2026-07-28).
 """
 

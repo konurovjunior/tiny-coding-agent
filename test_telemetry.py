@@ -1,6 +1,6 @@
 """Lesson 14/24: the trace shape the agent sends to Langfuse, checked in memory (no Langfuse, no API calls).
 
-Run (from this folder):  ../../../.venv/bin/python -m unittest test_telemetry -v
+Run (from this folder):  python -m unittest test_telemetry -v
 """
 
 import json

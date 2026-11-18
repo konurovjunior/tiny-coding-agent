@@ -1,6 +1,6 @@
 """Lesson 14/30: the eval suite's own checks. No API calls (a scripted model plays the agent).
 
-Run (from this folder):  ../../../.venv/bin/python -m unittest test_eval_suite -v
+Run (from this folder):  python -m unittest test_eval_suite -v
 """
 
 import tempfile

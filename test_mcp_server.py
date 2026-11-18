@@ -1,6 +1,6 @@
 """The MCP server follows lesson 13/06's stateless rules, and refusals reach the model as tool errors.
 
-Run (from this folder):  ../../../.venv/bin/python -m unittest test_mcp_server -v
+Run (from this folder):  python -m unittest test_mcp_server -v
 """
 
 import json

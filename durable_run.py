@@ -1,7 +1,7 @@
 """Command line for durable repair runs (durable.py).
 
   start   copy a workspace to a new folder and start repairing it
-            python durable_run.py start --source ../../../course/projects/tiny-coding-agent/examples/workspace \\
+            python durable_run.py start --source examples/workspace \\
                                         --copy-to /tmp/orchard-1 [--gate] [--crash-after N] [--max-steps 12]
   resume  continue a run from its last checkpoint
             python durable_run.py resume RUN_ID [--approve | --reject "reason"] [--crash-after N]

@@ -1,6 +1,6 @@
 """Lesson 14/27: with a model that OBEYS every planted instruction, what each defence stops. Scripted, no API calls.
 
-Run (from this folder):  ../../../.venv/bin/python -m unittest test_injection -v
+Run (from this folder):  python -m unittest test_injection -v
 """
 
 import json

@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+state/
+observability/.env
+observability/langfuse/
+*.sqlite
+*.log
+CLAUDE.local.md

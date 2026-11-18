@@ -10,8 +10,8 @@
                                                                        work it off, gate it against the baseline
 
 nightly is what a scheduler runs. Its exit code is the gate's (0 PASS, 1 FAIL), so cron/launchd mail or a CI job can
-alert on it. A crontab line for 03:00 every night (the model key comes from work/.env, as for every live run):
-  0 3 * * *  cd <this folder> && ../../../.venv/bin/python jobs.py nightly >> state/nightly.log 2>&1
+alert on it. A crontab line for 03:00 every night (the model key comes from .env, as for every live run):
+  0 3 * * *  cd <this folder> && python jobs.py nightly >> state/nightly.log 2>&1
 
 --trace langfuse (work, nightly) sends one trace per job attempt, with eval scores, to Langfuse (lesson 14/24).
 --chaos P makes P of all model calls fail with a timeout before they reach OpenAI: the retries, backoff and resume

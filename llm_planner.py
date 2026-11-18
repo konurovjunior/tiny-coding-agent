@@ -28,7 +28,7 @@ from mcp_server import schema_errors
 from memory import RepairMemory
 from tools import TOOLS, TOOLS_BY_NAME
 
-load_dotenv(Path(__file__).resolve().parents[2] / ".env")  # work/.env: OPENAI_API_KEY, LLM_MODEL
+load_dotenv(Path(__file__).resolve().parent / ".env")  # .env next to this file: OPENAI_API_KEY, LLM_MODEL
 
 MODEL = os.environ.get("LLM_MODEL", "gpt-6-luna")
 PRICES = {  # USD per 1M tokens (in, out), standard tier; checked 2026-10-18 for seller-docs-rag

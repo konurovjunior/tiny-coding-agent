@@ -1,7 +1,7 @@
 """Durable runs (lesson 14/13): checkpoints, resume after a crash, the approval gate, refusing a changed workspace.
 A fake model plays the agent: no API calls, no cost.
 
-Run (from this folder):  ../../../.venv/bin/python -m unittest test_durable -v
+Run (from this folder):  python -m unittest test_durable -v
 """
 
 import json

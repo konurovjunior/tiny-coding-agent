@@ -1,7 +1,7 @@
 """The tool registry passes lesson 13/05's linter, and read_file keeps stage 1's guarantees.
 
-Run (from this folder):  ../../../.venv/bin/python -m unittest test_tools -v
-The linter is loaded read-only from the course folder; the course is never edited.
+Run (from this folder):  python -m unittest test_tools -v
+The linter is the course's lesson 13/05 code, copied unchanged into vendor/ (MIT).
 """
 
 import importlib.util
@@ -12,8 +12,7 @@ from pathlib import Path
 
 from tools import TOOLS, TOOLS_BY_NAME, read_file
 
-LINTER = (Path(__file__).resolve().parents[3]
-          / "course/phases/13-tools-and-protocols/05-tool-schema-design/code/main.py")
+LINTER = Path(__file__).resolve().parent / "vendor" / "tool_schema_linter.py"
 
 
 def load_linter():

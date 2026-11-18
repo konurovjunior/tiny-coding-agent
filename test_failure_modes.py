@@ -1,7 +1,7 @@
 """Lesson 14/26: every provoked failure mode ends caught with guards, and the guards themselves behave.
 Uses failure_modes.py's scenarios (scripted model, real loop, no API calls).
 
-Run (from this folder):  ../../../.venv/bin/python -m unittest test_failure_modes -v
+Run (from this folder):  python -m unittest test_failure_modes -v
 """
 
 import unittest

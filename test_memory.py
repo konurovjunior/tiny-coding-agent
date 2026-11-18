@@ -1,6 +1,6 @@
 """Repair memory (lesson 14/07): what gets written, what search returns, and how the planner uses it. No API calls.
 
-Run (from this folder):  ../../../.venv/bin/python -m unittest test_memory -v
+Run (from this folder):  python -m unittest test_memory -v
 """
 
 import json

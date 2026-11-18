@@ -23,7 +23,7 @@ from main import drive
 from memory import RepairMemory, note_from_run
 
 HERE = Path(__file__).resolve().parent
-ORCHARD = HERE.parents[2] / "course/projects/tiny-coding-agent/examples/workspace"  # read-only: always copied first
+ORCHARD = HERE / "examples/workspace"  # read-only: always copied first
 
 
 def snapshot(folder: Path) -> dict[str, str]:

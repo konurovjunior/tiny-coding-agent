@@ -2,7 +2,7 @@
 brain (no API calls, no cost); everything else is real: the signed card, JSON-RPC, SSE, the queue, durable runs,
 the approval gate as TASK_STATE_INPUT_REQUIRED, artifacts, and the caller's own check with hidden tests.
 
-Run (from this folder):  ../../../.venv/bin/python -m unittest test_a2a -v
+Run (from this folder):  python -m unittest test_a2a -v
 """
 
 import base64

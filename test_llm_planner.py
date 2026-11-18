@@ -1,6 +1,6 @@
 """The model planner, driven by a fake model: no API calls, no cost.
 
-Run (from this folder):  ../../../.venv/bin/python -m unittest test_llm_planner -v
+Run (from this folder):  python -m unittest test_llm_planner -v
 """
 
 import json
